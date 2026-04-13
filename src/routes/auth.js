@@ -13,16 +13,43 @@ router.post('/login', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = result.rows[0];
-    if (!user || !bcrypt.compareSync(password, user.password)) {
-      req.flash('error', 'Username atau password salah!');
+
+    console.log('Login attempt:', username);
+    console.log('User found:', user ? 'yes' : 'no');
+
+    if (!user) {
+      req.flash('error', 'Username tidak ditemukan!');
       return res.redirect('/auth/login');
     }
+
+    const match = bcrypt.compareSync(password, user.password);
+    console.log('Password match:', match);
+
+    if (!match) {
+      req.flash('error', 'Password salah!');
+      return res.redirect('/auth/login');
+    }
+
     req.session.user = { id: user.id, username: user.username, role: user.role };
     res.redirect('/');
   } catch (err) {
-    console.error(err);
-    req.flash('error', 'Terjadi kesalahan server');
+    console.error('Login error:', err);
+    req.flash('error', 'Terjadi kesalahan server: ' + err.message);
     res.redirect('/auth/login');
+  }
+});
+
+// Route sementara untuk reset password - HAPUS SETELAH BISA LOGIN
+router.get('/reset-password', async (req, res) => {
+  try {
+    const hash = bcrypt.hashSync('Departemen44!@#', 10);
+    await pool.query(
+      'UPDATE users SET password=$1 WHERE username=$2',
+      [hash, 'Departemen']
+    );
+    res.send('✅ Password berhasil direset! Sekarang login dengan: Departemen / Departemen44!@#');
+  } catch (err) {
+    res.send('❌ Error: ' + err.message);
   }
 });
 
