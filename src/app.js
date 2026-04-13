@@ -4,7 +4,7 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const methodOverride = require('method-override');
 const path = require('path');
-const { initDB } = require('../config/db');
+const { initDB, pool } = require('../config/db');
 
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
@@ -23,12 +23,25 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(methodOverride('_method'));
+
+// Session - pakai connect-pg-simple biar aman di production
+const pgSession = require('connect-pg-simple')(session);
 app.use(session({
+  store: new pgSession({
+    pool,
+    tableName: 'session',
+    createTableIfMissing: true,
+  }),
   secret: process.env.SECRET_KEY || 'departemen-secret-2024',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 * 8 } // 8 hours
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 8, // 8 jam
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+  }
 }));
+
 app.use(flash());
 
 // Global locals
@@ -46,6 +59,9 @@ app.use('/', dashboardRoutes);
 app.use('/barang', barangRoutes);
 app.use('/export', exportRoutes);
 
+// Health check
+app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
+
 // 404
 app.use((req, res) => {
   res.status(404).render('pages/404', { title: '404 - Halaman Tidak Ditemukan' });
@@ -54,8 +70,8 @@ app.use((req, res) => {
 // Start
 async function start() {
   await initDB();
-  app.listen(PORT, () => {
-    console.log(`🚀 Server berjalan di http://localhost:${PORT}`);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server berjalan di http://0.0.0.0:${PORT}`);
   });
 }
 
